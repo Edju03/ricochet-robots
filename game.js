@@ -199,49 +199,29 @@ class PuzzleGenerator {
         };
         
         const [minMoves, maxMoves] = difficultyRanges[difficulty];
-        let totalAttempts = 0;
+        let attempt = 0;
         
         console.log(`Generating ${difficulty} puzzle (${minMoves}-${maxMoves} moves)...`);
         
-        // Keep trying until we find one - never give up!
+        // Keep trying until we find one - same as non-website version
         while (true) {
-            // Cycle through different strategies
-            for (let round = 0; round < 5; round++) {
-                for (let attempt = 0; attempt < 200; attempt++) {
-                    totalAttempts++;
-                    
-                    if (this.generateStrategicPuzzle(game, minMoves, maxMoves, round)) {
-                        console.log(`✓ Success! Found ${difficulty} puzzle on round ${round}, attempt ${attempt + 1} (total: ${totalAttempts})`);
-                        return true;
-                    }
-                    
-                    // Log progress every 500 attempts
-                    if (totalAttempts % 500 === 0) {
-                        console.log(`Still searching... ${totalAttempts} attempts so far (round ${round})`);
-                    }
+            attempt++;
+            
+            if (this.generateStrategicPuzzle(game, minMoves, maxMoves)) {
+                if (attempt > 30) {
+                    console.log(`Note: Found solution after ${attempt} attempts (target was 30)`);
                 }
+                return true;
             }
             
-            // After trying all strategies, try with slightly relaxed constraints for a bit
-            console.log(`Trying relaxed constraints after ${totalAttempts} attempts...`);
-            const relaxedMin = Math.max(4, minMoves - 2);
-            const relaxedMax = maxMoves + 4;
-            
-            for (let attempt = 0; attempt < 100; attempt++) {
-                totalAttempts++;
-                
-                if (this.generateStrategicPuzzle(game, relaxedMin, relaxedMax, 0)) {
-                    console.log(`✓ Success with relaxed constraints! Total attempts: ${totalAttempts}`);
-                    return true;
-                }
+            // Optional: Print progress for very long searches
+            if (attempt % 50 === 0) {
+                console.log(`Still searching... attempt ${attempt} for ${difficulty} difficulty`);
             }
-            
-            // If we still haven't found one, continue the infinite loop
-            console.log(`Continuing search after ${totalAttempts} attempts...`);
         }
     }
 
-    static generateStrategicPuzzle(game, minMoves, maxMoves, round = 0) {
+    static generateStrategicPuzzle(game, minMoves, maxMoves) {
         // Clear existing setup
         game.walls = [];
         game.visitedFriends.clear();
@@ -251,35 +231,11 @@ class PuzzleGenerator {
         // Add border walls
         this.addBorderWalls(game);
         
-        // Different strategies based on round
-        switch (round) {
-            case 0:
-                // Minimal walls approach
-                this.addIslandWalls(game, 0.3);
-                break;
-            case 1:
-                // Conservative approach with fewer walls
-                this.addIslandWalls(game, 0.5);
-                break;
-            case 2:
-                // Standard approach
-                this.addIslandWalls(game, 0.7);
-                break;
-            case 3:
-                // More aggressive approach with additional walls
-                this.addIslandWalls(game, 0.8);
-                this.addExtraWalls(game);
-                break;
-            case 4:
-                // Maximum complexity approach
-                this.addIslandWalls(game, 0.9);
-                this.addExtraWalls(game);
-                this.addRandomBarriers(game);
-                break;
-        }
+        // Add island walls - same as non-website version
+        this.addIslandWalls(game);
         
-        // Place game elements with better distribution
-        const positions = this.getRandomPositions(4, round);
+        // Place game elements with pure random distribution
+        const positions = this.getRandomPositions(4);
         game.startPos = positions[0];
         game.robotPos = new Position(positions[0].row, positions[0].col);
         game.goalPos = positions[1];
@@ -288,9 +244,8 @@ class PuzzleGenerator {
         
         game.updateGrid();
         
-        // Verify solvability and difficulty with increased timeout for hard puzzles
-        const timeout = maxMoves > 15 ? maxMoves + 15 : maxMoves + 10;
-        const solutionLength = this.computeSolutionLength(game, timeout);
+        // Verify solvability and difficulty
+        const solutionLength = this.computeSolutionLength(game, maxMoves + 5);
         if (solutionLength && solutionLength >= minMoves && solutionLength <= maxMoves) {
             game.optimalMoves = solutionLength;
             return true;
@@ -343,121 +298,60 @@ class PuzzleGenerator {
         }
     }
 
-    static addIslandWalls(game, probability = 0.7) {
-        // Add some strategic internal walls
-        const wallConfigs = [
-            // L-shaped configurations for corners
-            [[new Position(0, 0), new Position(0, 1)], [new Position(0, 0), new Position(1, 0)]],
-            [[new Position(0, 3), new Position(0, 4)], [new Position(0, 4), new Position(1, 4)]],
-            [[new Position(3, 0), new Position(4, 0)], [new Position(4, 0), new Position(4, 1)]],
-            [[new Position(3, 3), new Position(3, 4)], [new Position(4, 3), new Position(4, 4)]]
+    static addIslandWalls(game) {
+        // Define the four 2x2 islands (corners) - same as non-website version
+        const islands = [
+            [[0,0], [0,1], [1,0], [1,1]], // top-left
+            [[0,3], [0,4], [1,3], [1,4]], // top-right
+            [[3,0], [3,1], [4,0], [4,1]], // bottom-left
+            [[3,3], [3,4], [4,3], [4,4]]  // bottom-right
         ];
         
-        // Randomly add some of these configurations
-        wallConfigs.forEach(config => {
-            if (Math.random() < probability) {
-                config.forEach(wall => {
-                    game.walls.push(new EdgeWall(wall[0], wall[1]));
-                });
-            }
-        });
-        
-        // Add some random internal walls
-        const numWalls = Math.floor(3 * probability);
-        for (let i = 0; i < numWalls; i++) {
-            const row = Math.floor(Math.random() * (game.gridSize - 1));
-            const col = Math.floor(Math.random() * (game.gridSize - 1));
-            
-            if (Math.random() < 0.5) {
-                // Horizontal wall
-                game.walls.push(new EdgeWall(new Position(row, col), new Position(row + 1, col)));
-            } else {
-                // Vertical wall
-                game.walls.push(new EdgeWall(new Position(row, col), new Position(row, col + 1)));
-            }
-        }
-    }
-
-    static addExtraWalls(game) {
-        // Add additional strategic walls for harder puzzles
-        const extraWalls = [
-            [new Position(1, 1), new Position(1, 2)],
-            [new Position(2, 2), new Position(3, 2)],
-            [new Position(2, 1), new Position(2, 2)],
-            [new Position(3, 3), new Position(3, 4)]
-        ];
-        
-        extraWalls.forEach(wall => {
-            if (Math.random() < 0.4) {
-                game.walls.push(new EdgeWall(wall[0], wall[1]));
-            }
-        });
-    }
-
-    static addRandomBarriers(game) {
-        // Add completely random barriers for maximum complexity
-        const numBarriers = Math.floor(Math.random() * 3) + 1;
-        for (let i = 0; i < numBarriers; i++) {
-            const row = Math.floor(Math.random() * (game.gridSize - 1));
-            const col = Math.floor(Math.random() * (game.gridSize - 1));
-            
-            // Create small barrier patterns
-            const patterns = [
-                // Single wall
-                [[row, col, row + 1, col]],
-                [[row, col, row, col + 1]],
-                // L-shape
-                [[row, col, row + 1, col], [row, col, row, col + 1]],
-                // T-shape
-                [[row, col, row, col + 1], [row + 1, col, row + 1, col + 1]]
+        // For each island, randomly pick one of four L-shaped wall configs
+        islands.forEach(island => {
+            const base = island[0];
+            const configs = [
+                [[base[0], base[1], base[0], base[1]+1], [base[0], base[1], base[0]+1, base[1]]], // L at top-left
+                [[base[0], base[1]+1, base[0], base[1]], [base[0], base[1]+1, base[0]+1, base[1]+1]], // L at top-right
+                [[base[0]+1, base[1], base[0], base[1]], [base[0]+1, base[1], base[0]+1, base[1]+1]], // L at bottom-left
+                [[base[0]+1, base[1]+1, base[0]+1, base[1]], [base[0]+1, base[1]+1, base[0], base[1]+1]] // L at bottom-right
             ];
-            
-            const pattern = patterns[Math.floor(Math.random() * patterns.length)];
-            pattern.forEach(([r1, c1, r2, c2]) => {
-                if (r1 >= 0 && r1 < game.gridSize && c1 >= 0 && c1 < game.gridSize &&
-                    r2 >= 0 && r2 < game.gridSize && c2 >= 0 && c2 < game.gridSize) {
-                    game.walls.push(new EdgeWall(new Position(r1, c1), new Position(r2, c2)));
-                }
+            const selectedConfig = configs[Math.floor(Math.random() * configs.length)];
+            selectedConfig.forEach(wall => {
+                game.walls.push(new EdgeWall(new Position(wall[0], wall[1]), new Position(wall[2], wall[3])));
             });
-        }
+        });
+        
+        // Add one wall centered on each board edge
+        const mid = Math.floor(game.gridSize / 2);
+        game.walls.push(new EdgeWall(new Position(0, mid-1), new Position(0, mid))); // top
+        game.walls.push(new EdgeWall(new Position(game.gridSize-1, mid-1), new Position(game.gridSize-1, mid))); // bottom
+        game.walls.push(new EdgeWall(new Position(mid-1, 0), new Position(mid, 0))); // left
+        game.walls.push(new EdgeWall(new Position(mid-1, game.gridSize-1), new Position(mid, game.gridSize-1))); // right
     }
 
-    static getRandomPositions(count, round = 0) {
-        const positions = [];
-        const used = new Set();
-        
-        // Different placement strategies based on round
-        if (round === 0) {
-            // Conservative: prefer corners and edges for start/goal
-            const preferredPositions = [
-                new Position(0, 0), new Position(0, 4), new Position(4, 0), new Position(4, 4), // corners
-                new Position(0, 2), new Position(2, 0), new Position(2, 4), new Position(4, 2)  // edges
-            ];
-            
-            // Try preferred positions first for start and goal
-            for (let i = 0; i < Math.min(2, count) && positions.length < count; i++) {
-                const shuffled = [...preferredPositions].sort(() => Math.random() - 0.5);
-                for (const pos of shuffled) {
-                    const key = pos.toString();
-                    if (!used.has(key)) {
-                        used.add(key);
-                        positions.push(pos);
-                        break;
-                    }
-                }
+
+
+
+    static getRandomPositions(count) {
+        // Pure random positioning - same as non-website version
+        const allCells = [];
+        for (let i = 0; i < GRID_SIZE; i++) {
+            for (let j = 0; j < GRID_SIZE; j++) {
+                allCells.push([i, j]);
             }
         }
         
-        // Fill remaining positions randomly
-        while (positions.length < count) {
-            const row = Math.floor(Math.random() * GRID_SIZE);
-            const col = Math.floor(Math.random() * GRID_SIZE);
-            const key = `${row},${col}`;
-            
-            if (!used.has(key)) {
-                used.add(key);
-                positions.push(new Position(row, col));
-            }
+        // Shuffle array
+        for (let i = allCells.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [allCells[i], allCells[j]] = [allCells[j], allCells[i]];
+        }
+        
+        const positions = [];
+        for (let i = 0; i < count; i++) {
+            const [row, col] = allCells.pop();
+            positions.push(new Position(row, col));
         }
         
         return positions;
@@ -576,6 +470,10 @@ class RicochetGUI {
         this.ctx = this.canvas.getContext('2d');
         this.isAnimating = false;
         this.showWinOverlay = false;
+        this.solutionTimeouts = new Set();
+        this.isSolutionAnimating = false;
+        this.animationFrameId = null;
+        this.cancelAnimation = false;
         
         this.colors = {
             bg: '#0f0f23',
@@ -606,34 +504,28 @@ class RicochetGUI {
                 case 'ArrowUp':
                 case 'w':
                 case 'W':
-                    e.preventDefault();
                     this.moveRobot(Direction.NORTH);
                     break;
                 case 'ArrowDown':
                 case 's':
                 case 'S':
-                    e.preventDefault();
                     this.moveRobot(Direction.SOUTH);
                     break;
                 case 'ArrowLeft':
                 case 'a':
                 case 'A':
-                    e.preventDefault();
                     this.moveRobot(Direction.WEST);
                     break;
                 case 'ArrowRight':
                 case 'd':
                 case 'D':
-                    e.preventDefault();
                     this.moveRobot(Direction.EAST);
                     break;
                 case ' ':
-                    e.preventDefault();
                     this.newGame();
                     break;
                 case 'r':
                 case 'R':
-                    e.preventDefault();
                     this.resetPosition();
                     break;
             }
@@ -657,11 +549,11 @@ class RicochetGUI {
     moveRobot(direction) {
         const result = this.game.moveRobot(direction);
         if (result && result.moved) {
-            this.animateRobotMovement(result.oldPos, result.newPos, result.friendVisited);
+            this.animateRobotMovement(result.oldPos, result.newPos);
         }
     }
 
-    animateRobotMovement(startPos, endPos, friendVisited) {
+    animateRobotMovement(startPos, endPos) {
         this.isAnimating = true;
         
         const startX = startPos.col * CELL_SIZE + 20 + CELL_SIZE / 2;
@@ -685,6 +577,14 @@ class RicochetGUI {
         let currentStep = 0;
         
         const animate = () => {
+            // Check if animation was cancelled
+            if (this.cancelAnimation || !this.isAnimating) {
+                this.isAnimating = false;
+                this.cancelAnimation = false;
+                this.drawBoard();
+                return;
+            }
+            
             if (currentStep <= steps) {
                 const currentX = startX + stepX * currentStep;
                 const currentY = startY + stepY * currentStep;
@@ -736,7 +636,7 @@ class RicochetGUI {
                 }
                 
                 currentStep++;
-                requestAnimationFrame(animate);
+                this.animationFrameId = requestAnimationFrame(animate);
             } else {
                 this.drawBoard();
                 this.updateStatus();
@@ -773,6 +673,7 @@ class RicochetGUI {
     }
 
     newGame() {
+        this.stopSolutionAnimation();
         this.hideWinOverlay();
         const difficulty = document.getElementById('difficulty-select').value;
         PuzzleGenerator.generateGuaranteedSolvablePuzzle(this.game, difficulty);
@@ -782,6 +683,7 @@ class RicochetGUI {
     }
 
     resetPosition() {
+        this.stopSolutionAnimation();
         if (!this.game.gameWon && !this.showWinOverlay) {
             this.game.reset();
             this.drawBoard();
@@ -790,7 +692,7 @@ class RicochetGUI {
     }
 
     showSolution() {
-        if (this.game.gameWon || this.showWinOverlay || this.isAnimating) return;
+        if (this.game.gameWon || this.showWinOverlay || this.isAnimating || this.isSolutionAnimating) return;
         
         const solutionPath = PuzzleGenerator.findSolutionPath(this.game);
         if (solutionPath) {
@@ -799,14 +701,24 @@ class RicochetGUI {
     }
 
     animateSolution(solutionPath) {
-        this.resetPosition();
+        this.game.reset();
         this.isAnimating = true;
+        this.isSolutionAnimating = true;
+        this.cancelAnimation = false;
         
         let moveIndex = 0;
         
         const animateNextMove = () => {
+            // Check if solution animation was cancelled
+            if (!this.isSolutionAnimating || this.cancelAnimation) {
+                this.isAnimating = false;
+                this.isSolutionAnimating = false;
+                return;
+            }
+            
             if (moveIndex >= solutionPath.length) {
                 this.isAnimating = false;
+                this.isSolutionAnimating = false;
                 return;
             }
             
@@ -814,14 +726,26 @@ class RicochetGUI {
             const result = this.game.moveRobot(direction);
             
             if (result && result.moved) {
-                this.animateRobotMovement(result.oldPos, result.newPos, result.friendVisited);
-                setTimeout(() => {
-                    moveIndex++;
-                    animateNextMove();
+                this.animateRobotMovement(result.oldPos, result.newPos);
+                const timeoutId = setTimeout(() => {
+                    this.solutionTimeouts.delete(timeoutId);
+                    // Double-check cancellation before next move
+                    if (this.isSolutionAnimating && !this.cancelAnimation) {
+                        moveIndex++;
+                        animateNextMove();
+                    }
                 }, 1000);
+                this.solutionTimeouts.add(timeoutId);
             } else {
                 moveIndex++;
-                animateNextMove();
+                // Use a small timeout for non-moves too, but make it cancellable
+                const timeoutId = setTimeout(() => {
+                    this.solutionTimeouts.delete(timeoutId);
+                    if (this.isSolutionAnimating && !this.cancelAnimation) {
+                        animateNextMove();
+                    }
+                }, 100);
+                this.solutionTimeouts.add(timeoutId);
             }
         };
         
@@ -1284,6 +1208,24 @@ class RicochetGUI {
         }
         
         this.ctx.restore();
+    }
+
+    stopSolutionAnimation() {
+        // Clear all solution timeouts
+        this.solutionTimeouts.forEach(timeoutId => {
+            clearTimeout(timeoutId);
+        });
+        this.solutionTimeouts.clear();
+        
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        this.isSolutionAnimating = false;
+        this.isAnimating = false;
+        this.cancelAnimation = true;
+        // Redraw the board to clean up any partial animations
+        this.drawBoard();
     }
 
     drawWalls() {
