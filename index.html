@@ -4,118 +4,157 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ricochet Robots - Strategic Sliding Puzzle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="game-container">
-        <!-- Left panel - Game board -->
-        <div class="board-container">
-            <div class="board-shadow">
-                <div class="board-frame">
-                    <h2 class="board-title">GAME BOARD</h2>
-                    <canvas id="gameCanvas" width="640" height="640"></canvas>
+    <!-- Animated background -->
+    <div class="background-animation">
+        <div class="particle" style="--delay: 0s; --duration: 20s;"></div>
+        <div class="particle" style="--delay: 5s; --duration: 25s;"></div>
+        <div class="particle" style="--delay: 10s; --duration: 30s;"></div>
+        <div class="particle" style="--delay: 15s; --duration: 22s;"></div>
+        <div class="grid-overlay"></div>
+    </div>
+
+    <!-- Main container -->
+    <div class="game-wrapper">
+        <!-- Header -->
+        <header class="game-header">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <div class="cyber-logo">R</div>
+                </div>
+                <div class="logo-text">
+                    <h1 class="logo-title">RICOCHET</h1>
+                    <span class="logo-subtitle">NEON GRID</span>
                 </div>
             </div>
-        </div>
-
-        <!-- Right panel - Control dashboard -->
-        <div class="control-panel">
-            <!-- Header -->
-            <div class="header-section">
-                <h1 class="game-title">RICOCHET</h1>
-                <h1 class="game-subtitle">ROBOTS</h1>
+            
+            <div class="header-controls">
+                <div class="difficulty-selector-header">
+                    <label for="difficulty-select" class="difficulty-label">DIFFICULTY LEVEL</label>
+                    <select id="difficulty-select" class="difficulty-dropdown-modern">
+                        <option value="Easy">EASY</option>
+                        <option value="Medium" selected>MEDIUM</option>
+                        <option value="Hard">HARD</option>
+                    </select>
+                </div>
             </div>
+        </header>
 
-            <!-- Scrollable content -->
-            <div class="content-area">
-                <!-- Game description -->
-                <div class="card">
-                    <h3 class="card-title">HOW TO PLAY</h3>
+        <!-- Game content -->
+        <div class="game-container">
+            <!-- Left panel - Game board -->
+            <div class="board-section">
+                <div class="board-wrapper">
                     
-                    <div class="section">
-                        <h4 class="section-title objective">OBJECTIVE</h4>
-                        <p class="section-text">Collect both crystals, then reach the red goal</p>
+                    <div class="canvas-container">
+                        <canvas id="gameCanvas" width="600" height="600"></canvas>
+                        <div class="canvas-overlay" id="canvasOverlay"></div>
                     </div>
                     
-                    <div class="section">
-                        <h4 class="section-title controls">CONTROLS</h4>
-                        <p class="section-text">Arrow keys or WASD • Robot slides until hitting walls</p>
+                    <!-- Game controls -->
+                    <div class="board-controls">
+                        <button id="newGameBtn" class="control-btn primary">
+                            <span class="btn-icon">◊</span>
+                            <span class="btn-text">NEW GRID</span>
+                        </button>
+                        <button id="resetBtn" class="control-btn secondary">
+                            <span class="btn-icon">⟲</span>
+                            <span class="btn-text">RESET</span>
+                        </button>
+                        <button id="solutionBtn" class="control-btn accent">
+                            <span class="btn-icon">◯</span>
+                            <span class="btn-text">SHOW SOLUTION</span>
+                        </button>
                     </div>
                 </div>
+            </div>
 
-                <!-- Game stats -->
-                <div class="stats-container">
-                    <!-- Difficulty -->
-                    <div class="card">
-                        <h4 class="stat-title">DIFFICULTY</h4>
-                        <div class="difficulty-selector">
-                            <select id="difficulty" class="difficulty-dropdown">
-                                <option value="Easy">Easy</option>
-                                <option value="Medium" selected>Medium</option>
-                                <option value="Hard">Hard</option>
-                            </select>
+            <!-- Right panel - Game info -->
+            <div class="info-panel">
+                <!-- Stats dashboard -->
+                <div class="stats-dashboard">
+                    <div class="stat-card moves-card">
+                        <div class="stat-icon">▲</div>
+                        <div class="stat-content">
+                            <div class="stat-label">MOVES</div>
+                            <div id="moveCount" class="stat-value">0</div>
                         </div>
                     </div>
+                    
+                    <div class="stat-card optimal-card">
+                        <div class="stat-icon">◊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">OPTIMAL</div>
+                            <div id="optimalMoves" class="stat-value">-</div>
+                        </div>
+                    </div>
+                </div>
 
-                    <!-- Moves and Optimal -->
-                    <div class="stats-row">
-                        <div class="card stat-card">
-                            <h4 class="stat-title">YOUR MOVES</h4>
-                            <div id="moveCount" class="stat-value moves">0</div>
+                <!-- Mission objectives -->
+                <div class="mission-panel">
+                    <h3 class="panel-title">
+                        <span class="title-icon">▣</span>
+                        MISSION OBJECTIVES
+                    </h3>
+                    
+                    <div class="objective-list">
+                        <div class="objective-item">
+                            <div class="objective-icon amber">◆</div>
+                            <div class="objective-text">
+                                <div class="objective-name">Acquire Energy Core Alpha</div>
+                                <div id="crystal1Status" class="objective-status">PENDING</div>
+                            </div>
                         </div>
                         
-                        <div class="card stat-card">
-                            <h4 class="stat-title">OPTIMAL</h4>
-                            <div id="optimalMoves" class="stat-value optimal">-</div>
+                        <div class="objective-item">
+                            <div class="objective-icon violet">◇</div>
+                            <div class="objective-text">
+                                <div class="objective-name">Acquire Energy Core Beta</div>
+                                <div id="crystal2Status" class="objective-status">PENDING</div>
+                            </div>
+                        </div>
+                        
+                        <div class="objective-item">
+                            <div class="objective-icon goal">⬟</div>
+                            <div class="objective-text">
+                                <div class="objective-name">Access Portal</div>
+                                <div id="goalStatus" class="objective-status">LOCKED</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Crystal progress -->
-                <div class="card">
-                    <h3 class="card-title">CRYSTAL PROGRESS</h3>
-                    <div class="crystal-progress">
-                        <div class="crystal-item">
-                            <span class="crystal-label">Amber</span>
-                            <span id="crystal1" class="crystal-indicator amber">▲</span>
+                <!-- Game instructions -->
+                <div class="instructions-panel">
+                    <h3 class="panel-title">
+                        <span class="title-icon">▣</span>
+                        HOW TO PLAY
+                    </h3>
+                    
+                    <div class="game-rules">
+                        <div class="rule-section">
+                            <h4 class="rule-title">CONTROLS</h4>
+                            <p class="rule-text">Use WASD or Arrow Keys to move your robot</p>
                         </div>
-                        <div class="crystal-item">
-                            <span class="crystal-label">Violet</span>
-                            <span id="crystal2" class="crystal-indicator violet">▼</span>
+                        
+                        <div class="rule-section">
+                            <h4 class="rule-title">MOVEMENT</h4>
+                            <p class="rule-text">Robot slides until it hits a wall or boundary</p>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Action buttons -->
-                <div class="button-container">
-                    <button id="newGameBtn" class="game-button primary">NEW PUZZLE</button>
-                    <button id="resetBtn" class="game-button warning">RESET POSITION</button>
-                    <button id="solutionBtn" class="game-button accent">SHOW SOLUTION</button>
-                </div>
-
-                <!-- Legend -->
-                <div class="card">
-                    <h3 class="card-title">GAME ELEMENTS</h3>
-                    <div class="legend-grid">
-                        <div class="legend-item">
-                            <span class="legend-symbol robot">●</span>
-                            <span class="legend-desc">Your Robot</span>
+                        
+                        <div class="rule-section">
+                            <h4 class="rule-title">OBJECTIVE</h4>
+                            <p class="rule-text">Collect both crystals, then reach the goal</p>
                         </div>
-                        <div class="legend-item">
-                            <span class="legend-symbol goal">◆</span>
-                            <span class="legend-desc">Goal Target</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-symbol amber">▲</span>
-                            <span class="legend-desc">Amber Crystal</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-symbol violet">▼</span>
-                            <span class="legend-desc">Violet Crystal</span>
-                        </div>
-                        <div class="legend-item">
-                            <span class="legend-symbol wall">━</span>
-                            <span class="legend-desc">Wall Barriers</span>
+                        
+                        <div class="rule-section">
+                            <h4 class="rule-title">WINNING</h4>
+                            <p class="rule-text">Complete the puzzle in minimum moves</p>
                         </div>
                     </div>
                 </div>
@@ -123,14 +162,38 @@
         </div>
     </div>
 
-    <!-- Win overlay -->
-    <div id="winOverlay" class="win-overlay hidden">
-        <div class="win-panel">
-            <h2 class="win-title">PUZZLE SOLVED!</h2>
-            <p id="winMoves" class="win-moves">Completed in 0 moves</p>
-            <button id="nextPuzzleBtn" class="win-button">Next Puzzle</button>
+    <!-- Victory overlay -->
+    <div id="winOverlay" class="victory-overlay hidden">
+        <div class="victory-container">
+            <div class="victory-animation">
+                <div class="victory-particles"></div>
+                <div class="victory-glow"></div>
+            </div>
+            
+            <div class="victory-content">
+                <div class="victory-icon">◊</div>
+                <h2 class="victory-title">MISSION COMPLETE</h2>
+                <p class="victory-subtitle">Protocol executed successfully</p>
+                
+                <div class="victory-stats">
+                    <div class="victory-stat">
+                        <span class="victory-stat-label">Operations</span>
+                        <span id="winMoves" class="victory-stat-value">0</span>
+                    </div>
+                    <div class="victory-stat">
+                        <span class="victory-stat-label">Rating</span>
+                        <span id="winPerformance" class="victory-stat-value">OPTIMAL</span>
+                    </div>
+                </div>
+                
+                <button id="nextPuzzleBtn" class="victory-button">
+                    <span class="btn-icon">▶</span>
+                    <span class="btn-text">NEXT GRID</span>
+                </button>
+            </div>
         </div>
     </div>
+
 
     <script src="game.js"></script>
 </body>

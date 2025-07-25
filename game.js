@@ -520,6 +520,11 @@ class RicochetGUI {
             this.hideWinOverlay();
             this.newGame();
         });
+        
+        // Update difficulty selector
+        document.getElementById('difficulty-select').addEventListener('change', (e) => {
+            this.newGame();
+        });
     }
 
     moveRobot(direction) {
@@ -560,22 +565,42 @@ class RicochetGUI {
                 // Redraw board without robot
                 this.drawBoardStatic();
                 
-                // Draw animated robot
+                // Draw animated robot with professional styling
                 this.ctx.save();
-                this.ctx.fillStyle = this.colors.secondary;
-                this.ctx.strokeStyle = '#0891b2';
-                this.ctx.lineWidth = 3;
+                
+                // Outer glow for movement
+                const animGradient = this.ctx.createRadialGradient(currentX, currentY, 0, currentX, currentY, 35);
+                animGradient.addColorStop(0, 'rgba(0, 212, 255, 0.8)');
+                animGradient.addColorStop(0.7, 'rgba(0, 212, 255, 0.3)');
+                animGradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+                this.ctx.fillStyle = animGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(currentX, currentY, 35, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Main robot body
+                const robotGradient = this.ctx.createRadialGradient(currentX - 6, currentY - 6, 0, currentX, currentY, 25);
+                robotGradient.addColorStop(0, '#ffffff');
+                robotGradient.addColorStop(0.3, '#00d4ff');
+                robotGradient.addColorStop(0.8, '#0891b2');
+                robotGradient.addColorStop(1, '#065f7f');
+                this.ctx.fillStyle = robotGradient;
+                this.ctx.strokeStyle = '#00d4ff';
+                this.ctx.lineWidth = 2;
                 this.ctx.beginPath();
                 this.ctx.arc(currentX, currentY, 25, 0, 2 * Math.PI);
                 this.ctx.fill();
                 this.ctx.stroke();
+                
                 this.ctx.restore();
                 
                 // Draw trajectory path
                 if (currentStep > 0) {
                     this.ctx.save();
-                    this.ctx.strokeStyle = '#38bdf8';
+                    this.ctx.strokeStyle = '#00d4ff';
                     this.ctx.lineWidth = 3;
+                    this.ctx.shadowColor = '#00d4ff';
+                    this.ctx.shadowBlur = 5;
                     this.ctx.beginPath();
                     this.ctx.moveTo(startX, startY);
                     this.ctx.lineTo(currentX, currentY);
@@ -590,6 +615,7 @@ class RicochetGUI {
                 this.updateStatus();
                 
                 if (this.game.gameWon) {
+                    this.updateGameStatus('VICTORY');
                     setTimeout(() => this.showWinScreen(), 500);
                 }
                 
@@ -602,7 +628,15 @@ class RicochetGUI {
 
     showWinScreen() {
         this.showWinOverlay = true;
-        document.getElementById('winMoves').textContent = `Completed in ${this.game.moveCount} moves`;
+        document.getElementById('winMoves').textContent = this.game.moveCount;
+        
+        // Calculate performance rating
+        const optimal = this.game.optimalMoves || this.game.moveCount;
+        const performance = this.game.moveCount <= optimal ? 'PERFECT' : 
+                          this.game.moveCount <= optimal + 2 ? 'EXCELLENT' : 
+                          this.game.moveCount <= optimal + 5 ? 'GOOD' : 'COMPLETED';
+        document.getElementById('winPerformance').textContent = performance;
+        
         document.getElementById('winOverlay').classList.remove('hidden');
     }
 
@@ -613,10 +647,11 @@ class RicochetGUI {
 
     newGame() {
         this.hideWinOverlay();
-        const difficulty = document.getElementById('difficulty').value;
+        const difficulty = document.getElementById('difficulty-select').value;
         PuzzleGenerator.generateGuaranteedSolvablePuzzle(this.game, difficulty);
         this.drawBoard();
         this.updateStatus();
+        this.updateGameStatus('ACTIVE');
     }
 
     resetPosition() {
@@ -671,14 +706,32 @@ class RicochetGUI {
         document.getElementById('optimalMoves').textContent = 
             this.game.optimalMoves !== null ? this.game.optimalMoves : '-';
         
-        // Update crystal indicators
-        const crystal1 = document.getElementById('crystal1');
-        const crystal2 = document.getElementById('crystal2');
+        // Update objective statuses
+        const crystal1Collected = this.game.visitedFriends.has(this.game.amberCrystalPos.toString());
+        const crystal2Collected = this.game.visitedFriends.has(this.game.violetCrystalPos.toString());
         
-        crystal1.style.color = this.game.visitedFriends.has(this.game.amberCrystalPos.toString()) 
-            ? this.colors.warning : this.colors.border;
-        crystal2.style.color = this.game.visitedFriends.has(this.game.violetCrystalPos.toString()) 
-            ? this.colors.accent : this.colors.border;
+        document.getElementById('crystal1Status').textContent = crystal1Collected ? 'COLLECTED' : 'PENDING';
+        document.getElementById('crystal1Status').className = crystal1Collected ? 'objective-status completed' : 'objective-status';
+        
+        document.getElementById('crystal2Status').textContent = crystal2Collected ? 'COLLECTED' : 'PENDING';
+        document.getElementById('crystal2Status').className = crystal2Collected ? 'objective-status completed' : 'objective-status';
+        
+        const goalUnlocked = crystal1Collected && crystal2Collected;
+        document.getElementById('goalStatus').textContent = this.game.gameWon ? 'COMPLETED' : (goalUnlocked ? 'UNLOCKED' : 'LOCKED');
+        document.getElementById('goalStatus').className = this.game.gameWon ? 'objective-status completed' : (goalUnlocked ? 'objective-status' : 'objective-status locked');
+    }
+
+    updateGameStatus(status) {
+        const statusElement = document.getElementById('gameStatus');
+        statusElement.textContent = status;
+        
+        // Update status indicator styling based on game state
+        statusElement.className = 'status-indicator';
+        if (status === 'VICTORY') {
+            statusElement.style.background = 'var(--gradient-success)';
+        } else if (status === 'ACTIVE') {
+            statusElement.style.background = 'var(--gradient-primary)';
+        }
     }
 
     drawBoard() {
@@ -695,19 +748,24 @@ class RicochetGUI {
                 const x = j * CELL_SIZE + 20;
                 const y = i * CELL_SIZE + 20;
                 
-                // Cell background
-                this.ctx.fillStyle = (i + j) % 2 === 0 ? '#ffffff' : '#f8fafc';
+                // Professional cell background with subtle grid
+                this.ctx.fillStyle = (i + j) % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'rgba(30, 41, 59, 0.2)';
                 this.ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
                 
-                // Cell border
-                this.ctx.strokeStyle = (i + j) % 2 === 0 ? '#e2e8f0' : '#cbd5e1';
-                this.ctx.lineWidth = 2;
+                // Neon grid lines
+                this.ctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+                this.ctx.lineWidth = 0.5;
                 this.ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
                 
-                // Highlight visited friends
+                // Highlight visited friends with professional glow
                 if (this.game.visitedFriends.has(`${i},${j}`)) {
-                    this.ctx.fillStyle = '#d1fae5';
+                    this.ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
                     this.ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                    
+                    // Add glowing border
+                    this.ctx.strokeStyle = '#00ff88';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
                 }
                 
                 // Draw cell content
@@ -728,111 +786,373 @@ class RicochetGUI {
         
         switch (cellType) {
             case CellType.ROBOT:
-                // Robot with glow effect
-                this.ctx.fillStyle = '#a7f3d0';
+                // Professional Energy Orb Agent Design
+                const time = Date.now() * 0.003;
+                
+                // Outer energy field with pulsing
+                const energyGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 45);
+                energyGradient.addColorStop(0, 'rgba(0, 212, 255, 0.6)');
+                energyGradient.addColorStop(0.6, 'rgba(0, 212, 255, 0.2)');
+                energyGradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+                this.ctx.fillStyle = energyGradient;
                 this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, 35, 0, 2 * Math.PI);
+                this.ctx.arc(centerX, centerY, 45 + Math.sin(time) * 3, 0, 2 * Math.PI);
                 this.ctx.fill();
                 
-                this.ctx.fillStyle = this.colors.secondary;
-                this.ctx.strokeStyle = '#0891b2';
-                this.ctx.lineWidth = 3;
+                // Main orb body with metallic cyan
+                const orbGradient = this.ctx.createRadialGradient(centerX - 8, centerY - 8, 0, centerX, centerY, 28);
+                orbGradient.addColorStop(0, '#ffffff');
+                orbGradient.addColorStop(0.3, '#00d4ff');
+                orbGradient.addColorStop(0.8, '#0891b2');
+                orbGradient.addColorStop(1, '#065f7f');
+                this.ctx.fillStyle = orbGradient;
                 this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, 25, 0, 2 * Math.PI);
+                this.ctx.arc(centerX, centerY, 28, 0, 2 * Math.PI);
                 this.ctx.fill();
+                
+                // Outer ring with glow
+                this.ctx.strokeStyle = '#00d4ff';
+                this.ctx.lineWidth = 2;
+                this.ctx.shadowColor = '#00d4ff';
+                this.ctx.shadowBlur = 10;
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, 28, 0, 2 * Math.PI);
                 this.ctx.stroke();
+                this.ctx.shadowBlur = 0;
                 
-                // Inner highlight
-                this.ctx.fillStyle = '#bfdbfe';
+                // Inner energy core with rotation
+                const coreSize = 8 + Math.sin(time * 2) * 2;
+                const innerGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreSize);
+                innerGradient.addColorStop(0, '#ffffff');
+                innerGradient.addColorStop(0.7, '#00d4ff');
+                innerGradient.addColorStop(1, 'transparent');
+                this.ctx.fillStyle = innerGradient;
                 this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+                this.ctx.arc(centerX, centerY, coreSize, 0, 2 * Math.PI);
                 this.ctx.fill();
                 
-                this.ctx.fillStyle = 'white';
+                // Digital crosshair
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1.5;
+                this.ctx.globalAlpha = 0.8;
                 this.ctx.beginPath();
-                this.ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
-                this.ctx.fill();
+                this.ctx.moveTo(centerX - 4, centerY);
+                this.ctx.lineTo(centerX + 4, centerY);
+                this.ctx.moveTo(centerX, centerY - 4);
+                this.ctx.lineTo(centerX, centerY + 4);
+                this.ctx.stroke();
+                this.ctx.globalAlpha = 1;
                 break;
                 
             case CellType.START:
-                this.ctx.fillStyle = '#dcfce7';
-                this.ctx.strokeStyle = this.colors.success;
-                this.ctx.lineWidth = 2;
-                this.ctx.fillRect(x + 25, y + 25, CELL_SIZE - 50, CELL_SIZE - 50);
-                this.ctx.strokeRect(x + 25, y + 25, CELL_SIZE - 50, CELL_SIZE - 50);
+                // Professional Origin Pad Design
+                const padTime = Date.now() * 0.002;
                 
-                this.ctx.fillStyle = this.colors.success;
-                this.ctx.font = 'bold 12px Arial';
-                this.ctx.textAlign = 'center';
-                this.ctx.fillText('START', centerX, centerY + 4);
+                // Base platform with hexagonal shape
+                this.ctx.strokeStyle = '#00ff88';
+                this.ctx.lineWidth = 2;
+                this.ctx.shadowColor = '#00ff88';
+                this.ctx.shadowBlur = 8;
+                
+                // Draw hexagon
+                this.ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * Math.PI) / 3;
+                    const hexX = centerX + Math.cos(angle) * 25;
+                    const hexY = centerY + Math.sin(angle) * 25;
+                    if (i === 0) this.ctx.moveTo(hexX, hexY);
+                    else this.ctx.lineTo(hexX, hexY);
+                }
+                this.ctx.closePath();
+                
+                const hexGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 25);
+                hexGradient.addColorStop(0, 'rgba(0, 255, 136, 0.3)');
+                hexGradient.addColorStop(1, 'rgba(0, 255, 136, 0.1)');
+                this.ctx.fillStyle = hexGradient;
+                this.ctx.fill();
+                this.ctx.stroke();
+                this.ctx.shadowBlur = 0;
+                
+                // Animated circuit lines
+                const circuitAlpha = 0.6 + Math.sin(padTime * 3) * 0.4;
+                this.ctx.globalAlpha = circuitAlpha;
+                this.ctx.strokeStyle = '#00ff88';
+                this.ctx.lineWidth = 1;
+                
+                // Cross pattern in center
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX - 12, centerY);
+                this.ctx.lineTo(centerX + 12, centerY);
+                this.ctx.moveTo(centerX, centerY - 12);
+                this.ctx.lineTo(centerX, centerY + 12);
+                this.ctx.stroke();
+                
+                // Corner connection nodes
+                for (let i = 0; i < 4; i++) {
+                    const angle = (i * Math.PI) / 2 + Math.PI / 4;
+                    const nodeX = centerX + Math.cos(angle) * 15;
+                    const nodeY = centerY + Math.sin(angle) * 15;
+                    this.ctx.beginPath();
+                    this.ctx.arc(nodeX, nodeY, 2, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                }
+                this.ctx.globalAlpha = 1;
                 break;
                 
             case CellType.GOAL:
-                // Diamond shape
-                this.ctx.fillStyle = '#fecaca';
-                this.ctx.beginPath();
-                this.ctx.moveTo(centerX, y + 18);
-                this.ctx.lineTo(x + CELL_SIZE - 18, centerY);
-                this.ctx.lineTo(centerX, y + CELL_SIZE - 18);
-                this.ctx.lineTo(x + 18, centerY);
-                this.ctx.closePath();
-                this.ctx.fill();
+                // High-Tech Energy Portal Design
+                const portalTime = Date.now() * 0.004;
+                const isUnlocked = this.game.visitedFriends.size >= 2;
                 
-                this.ctx.fillStyle = this.colors.danger;
-                this.ctx.strokeStyle = '#991b1b';
+                if (isUnlocked) {
+                    // Active portal with swirling energy
+                    // Outer energy ring
+                    const outerGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 35);
+                    outerGradient.addColorStop(0, 'rgba(0, 212, 255, 0.1)');
+                    outerGradient.addColorStop(0.7, 'rgba(0, 212, 255, 0.4)');
+                    outerGradient.addColorStop(1, 'rgba(255, 255, 255, 0.2)');
+                    this.ctx.fillStyle = outerGradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(centerX, centerY, 35, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                    
+                    // Swirling vortex effect
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (i * Math.PI) / 3 + portalTime * 2;
+                        const radius = 20 + Math.sin(portalTime * 3 + i) * 3;
+                        const spiralX = centerX + Math.cos(angle) * radius;
+                        const spiralY = centerY + Math.sin(angle) * radius;
+                        
+                        const spiralGradient = this.ctx.createRadialGradient(spiralX, spiralY, 0, spiralX, spiralY, 8);
+                        spiralGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                        spiralGradient.addColorStop(1, 'rgba(0, 212, 255, 0.2)');
+                        this.ctx.fillStyle = spiralGradient;
+                        this.ctx.beginPath();
+                        this.ctx.arc(spiralX, spiralY, 6, 0, 2 * Math.PI);
+                        this.ctx.fill();
+                    }
+                    
+                    // Central portal core
+                    const coreGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 15);
+                    coreGradient.addColorStop(0, '#ffffff');
+                    coreGradient.addColorStop(0.6, '#00d4ff');
+                    coreGradient.addColorStop(1, 'rgba(0, 212, 255, 0.1)');
+                    this.ctx.fillStyle = coreGradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI);
+                    this.ctx.fill();
+                } else {
+                    // Locked portal - dormant rhombus with faint circuits
+                    const lockGradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 30);
+                    lockGradient.addColorStop(0, 'rgba(71, 85, 105, 0.3)');
+                    lockGradient.addColorStop(1, 'rgba(71, 85, 105, 0.1)');
+                    this.ctx.fillStyle = lockGradient;
+                    
+                    // Draw rhombus
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(centerX, y + 20);
+                    this.ctx.lineTo(x + CELL_SIZE - 20, centerY);
+                    this.ctx.lineTo(centerX, y + CELL_SIZE - 20);
+                    this.ctx.lineTo(x + 20, centerY);
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                    
+                    this.ctx.strokeStyle = '#475569';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.globalAlpha = 0.5 + Math.sin(portalTime) * 0.2;
+                    this.ctx.stroke();
+                    this.ctx.globalAlpha = 1;
+                }
+                
+                // Portal frame/ring
+                this.ctx.strokeStyle = isUnlocked ? '#00d4ff' : '#475569';
                 this.ctx.lineWidth = 3;
+                this.ctx.shadowColor = isUnlocked ? '#00d4ff' : 'transparent';
+                this.ctx.shadowBlur = isUnlocked ? 10 : 0;
                 this.ctx.beginPath();
-                this.ctx.moveTo(centerX, y + 25);
-                this.ctx.lineTo(x + CELL_SIZE - 25, centerY);
-                this.ctx.lineTo(centerX, y + CELL_SIZE - 25);
-                this.ctx.lineTo(x + 25, centerY);
-                this.ctx.closePath();
-                this.ctx.fill();
+                this.ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
                 this.ctx.stroke();
+                this.ctx.shadowBlur = 0;
                 break;
                 
             case CellType.AMBER_CRYSTAL:
-                // Triangle up
-                this.ctx.fillStyle = '#fed7aa';
+                // Energy Core Alpha - Hexagonal Prism Design
+                const alphaTime = Date.now() * 0.004;
+                const alphaRotation = alphaTime;
+                
+                // Outer energy field with hexagonal pattern
+                const amberField = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 45);
+                amberField.addColorStop(0, 'rgba(255, 171, 0, 0.6)');
+                amberField.addColorStop(0.5, 'rgba(255, 171, 0, 0.3)');
+                amberField.addColorStop(1, 'rgba(255, 171, 0, 0)');
+                this.ctx.fillStyle = amberField;
                 this.ctx.beginPath();
-                this.ctx.moveTo(centerX, y + 15);
-                this.ctx.lineTo(x + CELL_SIZE - 15, y + CELL_SIZE - 15);
-                this.ctx.lineTo(x + 15, y + CELL_SIZE - 15);
+                this.ctx.arc(centerX, centerY, 45 + Math.sin(alphaTime * 2) * 3, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Rotating hexagonal crystal
+                this.ctx.save();
+                this.ctx.translate(centerX, centerY);
+                this.ctx.rotate(alphaRotation);
+                
+                // Main hexagonal crystal body
+                const amberHexGradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+                amberHexGradient.addColorStop(0, '#ffd700');
+                amberHexGradient.addColorStop(0.4, '#ffab00');
+                amberHexGradient.addColorStop(0.8, '#e67e00');
+                amberHexGradient.addColorStop(1, '#cc5500');
+                this.ctx.fillStyle = amberHexGradient;
+                
+                // Draw hexagon
+                this.ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * 60) * Math.PI / 180;
+                    const x = Math.cos(angle) * 20;
+                    const y = Math.sin(angle) * 20;
+                    if (i === 0) this.ctx.moveTo(x, y);
+                    else this.ctx.lineTo(x, y);
+                }
                 this.ctx.closePath();
                 this.ctx.fill();
                 
-                this.ctx.fillStyle = this.colors.warning;
-                this.ctx.strokeStyle = '#d97706';
-                this.ctx.lineWidth = 3;
-                this.ctx.beginPath();
-                this.ctx.moveTo(centerX, y + 25);
-                this.ctx.lineTo(x + CELL_SIZE - 25, y + CELL_SIZE - 25);
-                this.ctx.lineTo(x + 25, y + CELL_SIZE - 25);
-                this.ctx.closePath();
-                this.ctx.fill();
+                // Hexagon edges with glow
+                this.ctx.strokeStyle = '#ffd700';
+                this.ctx.lineWidth = 2;
                 this.ctx.stroke();
+                
+                // Inner hexagonal pattern
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1;
+                this.ctx.globalAlpha = 0.8;
+                this.ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i * 60) * Math.PI / 180;
+                    const x1 = Math.cos(angle) * 12;
+                    const y1 = Math.sin(angle) * 12;
+                    const x2 = Math.cos(angle + Math.PI) * 12;
+                    const y2 = Math.sin(angle + Math.PI) * 12;
+                    this.ctx.moveTo(x1, y1);
+                    this.ctx.lineTo(x2, y2);
+                }
+                this.ctx.stroke();
+                this.ctx.globalAlpha = 1;
+                
+                this.ctx.restore();
+                
+                // Pulsing outer ring
+                this.ctx.shadowColor = '#ffab00';
+                this.ctx.shadowBlur = 20;
+                this.ctx.strokeStyle = '#ffd700';
+                this.ctx.lineWidth = 3;
+                this.ctx.globalAlpha = 0.8 + Math.sin(alphaTime * 3) * 0.2;
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
+                this.ctx.stroke();
+                this.ctx.globalAlpha = 1;
+                this.ctx.shadowBlur = 0;
                 break;
                 
             case CellType.VIOLET_CRYSTAL:
-                // Triangle down
-                this.ctx.fillStyle = '#ddd6fe';
+                // Energy Core Beta - Triangular Pyramid with Spikes
+                const betaTime = Date.now() * 0.007;
+                const betaRotation = -betaTime * 0.8; // Slower counter-rotation
+                
+                // Outer energy field with triangular distortion
+                const violetField = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 50);
+                violetField.addColorStop(0, 'rgba(217, 70, 239, 0.7)');
+                violetField.addColorStop(0.4, 'rgba(217, 70, 239, 0.4)');
+                violetField.addColorStop(1, 'rgba(217, 70, 239, 0)');
+                this.ctx.fillStyle = violetField;
                 this.ctx.beginPath();
-                this.ctx.moveTo(x + 15, y + 15);
-                this.ctx.lineTo(x + CELL_SIZE - 15, y + 15);
-                this.ctx.lineTo(centerX, y + CELL_SIZE - 15);
+                this.ctx.arc(centerX, centerY, 50 + Math.sin(betaTime * 2.5) * 4, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Rotating spiked crystal structure
+                this.ctx.save();
+                this.ctx.translate(centerX, centerY);
+                this.ctx.rotate(betaRotation);
+                
+                // Main triangular pyramid body
+                const pyramidGradient = this.ctx.createLinearGradient(-18, -18, 18, 18);
+                pyramidGradient.addColorStop(0, '#e879f9');
+                pyramidGradient.addColorStop(0.3, '#d946ef');
+                pyramidGradient.addColorStop(0.7, '#a21caf');
+                pyramidGradient.addColorStop(1, '#701a75');
+                this.ctx.fillStyle = pyramidGradient;
+                
+                // Draw main triangular pyramid
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, -22);  // Top point
+                this.ctx.lineTo(-18, 10); // Bottom left
+                this.ctx.lineTo(18, 10);  // Bottom right
                 this.ctx.closePath();
                 this.ctx.fill();
                 
-                this.ctx.fillStyle = this.colors.accent;
-                this.ctx.strokeStyle = '#7c3aed';
-                this.ctx.lineWidth = 3;
+                // Triangle edges
+                this.ctx.strokeStyle = '#e879f9';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                
+                // Add three spikes at vertices
+                this.ctx.fillStyle = '#f3e8ff';
+                
+                // Top spike
                 this.ctx.beginPath();
-                this.ctx.moveTo(x + 25, y + 25);
-                this.ctx.lineTo(x + CELL_SIZE - 25, y + 25);
-                this.ctx.lineTo(centerX, y + CELL_SIZE - 25);
+                this.ctx.moveTo(0, -22);
+                this.ctx.lineTo(-4, -28);
+                this.ctx.lineTo(4, -28);
                 this.ctx.closePath();
                 this.ctx.fill();
+                
+                // Left spike
+                this.ctx.beginPath();
+                this.ctx.moveTo(-18, 10);
+                this.ctx.lineTo(-24, 8);
+                this.ctx.lineTo(-20, 16);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Right spike
+                this.ctx.beginPath();
+                this.ctx.moveTo(18, 10);
+                this.ctx.lineTo(24, 8);
+                this.ctx.lineTo(20, 16);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Inner crystalline lines
+                this.ctx.strokeStyle = '#ffffff';
+                this.ctx.lineWidth = 1;
+                this.ctx.globalAlpha = 0.9;
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, -12);
+                this.ctx.lineTo(-9, 5);
+                this.ctx.moveTo(0, -12);
+                this.ctx.lineTo(9, 5);
+                this.ctx.moveTo(-9, 5);
+                this.ctx.lineTo(9, 5);
                 this.ctx.stroke();
+                this.ctx.globalAlpha = 1;
+                
+                this.ctx.restore();
+                
+                // Triangular outer glow pattern
+                this.ctx.shadowColor = '#d946ef';
+                this.ctx.shadowBlur = 15;
+                this.ctx.strokeStyle = '#e879f9';
+                this.ctx.lineWidth = 2;
+                this.ctx.globalAlpha = 0.7 + Math.sin(betaTime * 4) * 0.3;
+                
+                // Draw triangular glow pattern
+                this.ctx.beginPath();
+                this.ctx.moveTo(centerX, centerY - 35);
+                this.ctx.lineTo(centerX - 30, centerY + 18);
+                this.ctx.lineTo(centerX + 30, centerY + 18);
+                this.ctx.closePath();
+                this.ctx.stroke();
+                
+                this.ctx.globalAlpha = 1;
+                this.ctx.shadowBlur = 0;
                 break;
         }
         
@@ -841,9 +1161,11 @@ class RicochetGUI {
 
     drawWalls() {
         this.ctx.save();
-        this.ctx.strokeStyle = '#374151';
+        this.ctx.strokeStyle = '#00d4ff';
         this.ctx.lineWidth = WALL_THICKNESS;
         this.ctx.lineCap = 'round';
+        this.ctx.shadowColor = '#00d4ff';
+        this.ctx.shadowBlur = 8;
         
         for (const wall of this.game.walls) {
             const a = wall.fromPos;
@@ -919,5 +1241,6 @@ class RicochetGUI {
 
 // Initialize the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize game immediately
     new RicochetGUI();
 });
