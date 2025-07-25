@@ -17,8 +17,8 @@ const CellType = {
     ROBOT: 'robot',
     START: 'start',
     GOAL: 'goal',
-    AMBER_CRYSTAL: 'amber_crystal',
-    VIOLET_CRYSTAL: 'violet_crystal'
+    GEM1: 'gem1',
+    GEM2: 'gem2'
 };
 
 // Position class
@@ -58,8 +58,8 @@ class RicochetGame {
         this.robotPos = null;
         this.startPos = null;
         this.goalPos = null;
-        this.amberCrystalPos = null;
-        this.violetCrystalPos = null;
+        this.gem1Pos = null;
+        this.gem2Pos = null;
         this.visitedFriends = new Set();
         this.moveCount = 0;
         this.gameWon = false;
@@ -124,16 +124,20 @@ class RicochetGame {
             
             let friendVisited = false;
             
-            // Check for crystal collection during movement
+            // Check for crystal collection and goal completion during movement
             for (let i = 1; i < result.path.length; i++) {
                 const pos = result.path[i];
-                if (pos.equals(this.amberCrystalPos) || pos.equals(this.violetCrystalPos)) {
+                if (pos.equals(this.gem1Pos) || pos.equals(this.gem2Pos)) {
                     this.visitedFriends.add(pos.toString());
                     friendVisited = true;
                 }
+                // Check if passing through portal after collecting both gems
+                if (pos.equals(this.goalPos) && this.visitedFriends.size === 2) {
+                    this.gameWon = true;
+                }
             }
             
-            // Check if we can reach the goal
+            // Also check if we landed on the goal with both gems collected
             if (result.finalPos.equals(this.goalPos) && this.visitedFriends.size === 2) {
                 this.gameWon = true;
             }
@@ -165,11 +169,11 @@ class RicochetGame {
         if (this.goalPos) {
             this.grid[this.goalPos.row][this.goalPos.col] = CellType.GOAL;
         }
-        if (this.amberCrystalPos) {
-            this.grid[this.amberCrystalPos.row][this.amberCrystalPos.col] = CellType.AMBER_CRYSTAL;
+        if (this.gem1Pos) {
+            this.grid[this.gem1Pos.row][this.gem1Pos.col] = CellType.GEM1;
         }
-        if (this.violetCrystalPos) {
-            this.grid[this.violetCrystalPos.row][this.violetCrystalPos.col] = CellType.VIOLET_CRYSTAL;
+        if (this.gem2Pos) {
+            this.grid[this.gem2Pos.row][this.gem2Pos.col] = CellType.GEM2;
         }
         if (this.robotPos) {
             this.grid[this.robotPos.row][this.robotPos.col] = CellType.ROBOT;
@@ -225,8 +229,8 @@ class PuzzleGenerator {
         game.startPos = positions[0];
         game.robotPos = new Position(positions[0].row, positions[0].col);
         game.goalPos = positions[1];
-        game.amberCrystalPos = positions[2];
-        game.violetCrystalPos = positions[3];
+        game.gem1Pos = positions[2];
+        game.gem2Pos = positions[3];
         
         game.updateGrid();
         
@@ -260,8 +264,8 @@ class PuzzleGenerator {
         game.startPos = new Position(0, 0);
         game.robotPos = new Position(0, 0);
         game.goalPos = new Position(4, 4);
-        game.amberCrystalPos = new Position(1, 3);
-        game.violetCrystalPos = new Position(3, 1);
+        game.gem1Pos = new Position(1, 3);
+        game.gem2Pos = new Position(3, 1);
         
         game.updateGrid();
         
@@ -369,10 +373,10 @@ class PuzzleGenerator {
                 // Check what we collect during this slide
                 for (let i = 1; i < result.path.length; i++) {
                     const cell = result.path[i];
-                    if (cell.equals(game.amberCrystalPos)) {
-                        newCollected.add(game.amberCrystalPos.toString());
-                    } else if (cell.equals(game.violetCrystalPos)) {
-                        newCollected.add(game.violetCrystalPos.toString());
+                    if (cell.equals(game.gem1Pos)) {
+                        newCollected.add(game.gem1Pos.toString());
+                    } else if (cell.equals(game.gem2Pos)) {
+                        newCollected.add(game.gem2Pos.toString());
                     } else if (cell.equals(game.goalPos) && newCollected.size === 2) {
                         newCollected.add(game.goalPos.toString());
                     }
@@ -420,10 +424,10 @@ class PuzzleGenerator {
                 // Check what we collect during this slide
                 for (let i = 1; i < result.path.length; i++) {
                     const cell = result.path[i];
-                    if (cell.equals(game.amberCrystalPos)) {
-                        newCollected.add(game.amberCrystalPos.toString());
-                    } else if (cell.equals(game.violetCrystalPos)) {
-                        newCollected.add(game.violetCrystalPos.toString());
+                    if (cell.equals(game.gem1Pos)) {
+                        newCollected.add(game.gem1Pos.toString());
+                    } else if (cell.equals(game.gem2Pos)) {
+                        newCollected.add(game.gem2Pos.toString());
                     } else if (cell.equals(game.goalPos) && newCollected.size === 2) {
                         newCollected.add(game.goalPos.toString());
                     }
@@ -707,16 +711,16 @@ class RicochetGUI {
             this.game.optimalMoves !== null ? this.game.optimalMoves : '-';
         
         // Update objective statuses
-        const crystal1Collected = this.game.visitedFriends.has(this.game.amberCrystalPos.toString());
-        const crystal2Collected = this.game.visitedFriends.has(this.game.violetCrystalPos.toString());
+        const gem1Collected = this.game.visitedFriends.has(this.game.gem1Pos.toString());
+        const gem2Collected = this.game.visitedFriends.has(this.game.gem2Pos.toString());
         
-        document.getElementById('crystal1Status').textContent = crystal1Collected ? 'COLLECTED' : 'PENDING';
-        document.getElementById('crystal1Status').className = crystal1Collected ? 'objective-status completed' : 'objective-status';
+        document.getElementById('crystal1Status').textContent = gem1Collected ? 'COLLECTED' : 'PENDING';
+        document.getElementById('crystal1Status').className = gem1Collected ? 'objective-status completed' : 'objective-status';
         
-        document.getElementById('crystal2Status').textContent = crystal2Collected ? 'COLLECTED' : 'PENDING';
-        document.getElementById('crystal2Status').className = crystal2Collected ? 'objective-status completed' : 'objective-status';
+        document.getElementById('crystal2Status').textContent = gem2Collected ? 'COLLECTED' : 'PENDING';
+        document.getElementById('crystal2Status').className = gem2Collected ? 'objective-status completed' : 'objective-status';
         
-        const goalUnlocked = crystal1Collected && crystal2Collected;
+        const goalUnlocked = gem1Collected && gem2Collected;
         document.getElementById('goalStatus').textContent = this.game.gameWon ? 'COMPLETED' : (goalUnlocked ? 'UNLOCKED' : 'LOCKED');
         document.getElementById('goalStatus').className = this.game.gameWon ? 'objective-status completed' : (goalUnlocked ? 'objective-status' : 'objective-status locked');
     }
@@ -975,8 +979,8 @@ class RicochetGUI {
                 this.ctx.shadowBlur = 0;
                 break;
                 
-            case CellType.AMBER_CRYSTAL:
-                // Energy Core Alpha - Hexagonal Prism Design
+            case CellType.GEM1:
+                // Gem 1 - Hexagonal Prism Design
                 const alphaTime = Date.now() * 0.004;
                 const alphaRotation = alphaTime;
                 
@@ -1052,8 +1056,8 @@ class RicochetGUI {
                 this.ctx.shadowBlur = 0;
                 break;
                 
-            case CellType.VIOLET_CRYSTAL:
-                // Energy Core Beta - Triangular Pyramid with Spikes
+            case CellType.GEM2:
+                // Gem 2 - Triangular Pyramid with Spikes
                 const betaTime = Date.now() * 0.007;
                 const betaRotation = -betaTime * 0.8; // Slower counter-rotation
                 
