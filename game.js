@@ -199,19 +199,49 @@ class PuzzleGenerator {
         };
         
         const [minMoves, maxMoves] = difficultyRanges[difficulty];
-        const maxAttempts = 100;
+        let totalAttempts = 0;
         
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            if (this.generateStrategicPuzzle(game, minMoves, maxMoves)) {
-                return true;
+        console.log(`Generating ${difficulty} puzzle (${minMoves}-${maxMoves} moves)...`);
+        
+        // Keep trying until we find one - never give up!
+        while (true) {
+            // Cycle through different strategies
+            for (let round = 0; round < 5; round++) {
+                for (let attempt = 0; attempt < 200; attempt++) {
+                    totalAttempts++;
+                    
+                    if (this.generateStrategicPuzzle(game, minMoves, maxMoves, round)) {
+                        console.log(`✓ Success! Found ${difficulty} puzzle on round ${round}, attempt ${attempt + 1} (total: ${totalAttempts})`);
+                        return true;
+                    }
+                    
+                    // Log progress every 500 attempts
+                    if (totalAttempts % 500 === 0) {
+                        console.log(`Still searching... ${totalAttempts} attempts so far (round ${round})`);
+                    }
+                }
             }
+            
+            // After trying all strategies, try with slightly relaxed constraints for a bit
+            console.log(`Trying relaxed constraints after ${totalAttempts} attempts...`);
+            const relaxedMin = Math.max(4, minMoves - 2);
+            const relaxedMax = maxMoves + 4;
+            
+            for (let attempt = 0; attempt < 100; attempt++) {
+                totalAttempts++;
+                
+                if (this.generateStrategicPuzzle(game, relaxedMin, relaxedMax, 0)) {
+                    console.log(`✓ Success with relaxed constraints! Total attempts: ${totalAttempts}`);
+                    return true;
+                }
+            }
+            
+            // If we still haven't found one, continue the infinite loop
+            console.log(`Continuing search after ${totalAttempts} attempts...`);
         }
-        
-        // Fallback to a known solvable puzzle
-        return this.generateOriginalStrategicPuzzle(game);
     }
 
-    static generateStrategicPuzzle(game, minMoves, maxMoves) {
+    static generateStrategicPuzzle(game, minMoves, maxMoves, round = 0) {
         // Clear existing setup
         game.walls = [];
         game.visitedFriends.clear();
@@ -221,11 +251,35 @@ class PuzzleGenerator {
         // Add border walls
         this.addBorderWalls(game);
         
-        // Add island walls for complexity
-        this.addIslandWalls(game);
+        // Different strategies based on round
+        switch (round) {
+            case 0:
+                // Minimal walls approach
+                this.addIslandWalls(game, 0.3);
+                break;
+            case 1:
+                // Conservative approach with fewer walls
+                this.addIslandWalls(game, 0.5);
+                break;
+            case 2:
+                // Standard approach
+                this.addIslandWalls(game, 0.7);
+                break;
+            case 3:
+                // More aggressive approach with additional walls
+                this.addIslandWalls(game, 0.8);
+                this.addExtraWalls(game);
+                break;
+            case 4:
+                // Maximum complexity approach
+                this.addIslandWalls(game, 0.9);
+                this.addExtraWalls(game);
+                this.addRandomBarriers(game);
+                break;
+        }
         
-        // Place game elements randomly
-        const positions = this.getRandomPositions(4);
+        // Place game elements with better distribution
+        const positions = this.getRandomPositions(4, round);
         game.startPos = positions[0];
         game.robotPos = new Position(positions[0].row, positions[0].col);
         game.goalPos = positions[1];
@@ -234,8 +288,9 @@ class PuzzleGenerator {
         
         game.updateGrid();
         
-        // Verify solvability and difficulty
-        const solutionLength = this.computeSolutionLength(game, maxMoves + 10);
+        // Verify solvability and difficulty with increased timeout for hard puzzles
+        const timeout = maxMoves > 15 ? maxMoves + 15 : maxMoves + 10;
+        const solutionLength = this.computeSolutionLength(game, timeout);
         if (solutionLength && solutionLength >= minMoves && solutionLength <= maxMoves) {
             game.optimalMoves = solutionLength;
             return true;
@@ -288,7 +343,7 @@ class PuzzleGenerator {
         }
     }
 
-    static addIslandWalls(game) {
+    static addIslandWalls(game, probability = 0.7) {
         // Add some strategic internal walls
         const wallConfigs = [
             // L-shaped configurations for corners
@@ -300,7 +355,7 @@ class PuzzleGenerator {
         
         // Randomly add some of these configurations
         wallConfigs.forEach(config => {
-            if (Math.random() < 0.7) {
+            if (Math.random() < probability) {
                 config.forEach(wall => {
                     game.walls.push(new EdgeWall(wall[0], wall[1]));
                 });
@@ -308,7 +363,8 @@ class PuzzleGenerator {
         });
         
         // Add some random internal walls
-        for (let i = 0; i < 3; i++) {
+        const numWalls = Math.floor(3 * probability);
+        for (let i = 0; i < numWalls; i++) {
             const row = Math.floor(Math.random() * (game.gridSize - 1));
             const col = Math.floor(Math.random() * (game.gridSize - 1));
             
@@ -322,10 +378,77 @@ class PuzzleGenerator {
         }
     }
 
-    static getRandomPositions(count) {
+    static addExtraWalls(game) {
+        // Add additional strategic walls for harder puzzles
+        const extraWalls = [
+            [new Position(1, 1), new Position(1, 2)],
+            [new Position(2, 2), new Position(3, 2)],
+            [new Position(2, 1), new Position(2, 2)],
+            [new Position(3, 3), new Position(3, 4)]
+        ];
+        
+        extraWalls.forEach(wall => {
+            if (Math.random() < 0.4) {
+                game.walls.push(new EdgeWall(wall[0], wall[1]));
+            }
+        });
+    }
+
+    static addRandomBarriers(game) {
+        // Add completely random barriers for maximum complexity
+        const numBarriers = Math.floor(Math.random() * 3) + 1;
+        for (let i = 0; i < numBarriers; i++) {
+            const row = Math.floor(Math.random() * (game.gridSize - 1));
+            const col = Math.floor(Math.random() * (game.gridSize - 1));
+            
+            // Create small barrier patterns
+            const patterns = [
+                // Single wall
+                [[row, col, row + 1, col]],
+                [[row, col, row, col + 1]],
+                // L-shape
+                [[row, col, row + 1, col], [row, col, row, col + 1]],
+                // T-shape
+                [[row, col, row, col + 1], [row + 1, col, row + 1, col + 1]]
+            ];
+            
+            const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+            pattern.forEach(([r1, c1, r2, c2]) => {
+                if (r1 >= 0 && r1 < game.gridSize && c1 >= 0 && c1 < game.gridSize &&
+                    r2 >= 0 && r2 < game.gridSize && c2 >= 0 && c2 < game.gridSize) {
+                    game.walls.push(new EdgeWall(new Position(r1, c1), new Position(r2, c2)));
+                }
+            });
+        }
+    }
+
+    static getRandomPositions(count, round = 0) {
         const positions = [];
         const used = new Set();
         
+        // Different placement strategies based on round
+        if (round === 0) {
+            // Conservative: prefer corners and edges for start/goal
+            const preferredPositions = [
+                new Position(0, 0), new Position(0, 4), new Position(4, 0), new Position(4, 4), // corners
+                new Position(0, 2), new Position(2, 0), new Position(2, 4), new Position(4, 2)  // edges
+            ];
+            
+            // Try preferred positions first for start and goal
+            for (let i = 0; i < Math.min(2, count) && positions.length < count; i++) {
+                const shuffled = [...preferredPositions].sort(() => Math.random() - 0.5);
+                for (const pos of shuffled) {
+                    const key = pos.toString();
+                    if (!used.has(key)) {
+                        used.add(key);
+                        positions.push(pos);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Fill remaining positions randomly
         while (positions.length < count) {
             const row = Math.floor(Math.random() * GRID_SIZE);
             const col = Math.floor(Math.random() * GRID_SIZE);
